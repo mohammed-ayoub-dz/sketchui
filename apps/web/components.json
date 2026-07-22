@@ -22,6 +22,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@grootstudio": "https://grootstudio.vercel.app/r/{name}.json"
+    "@grootstudio": "https://grootstudio.vercel.app/r/{name}.json",
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }

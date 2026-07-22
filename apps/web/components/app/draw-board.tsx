@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { Slider } from "@/components/ui/slider";
-import { Card, CardContent } from "@/components/ui/card";
 
 interface DrawingCanvasProps {
   tool: "brush" | "eraser";
@@ -14,24 +12,34 @@ interface DrawingCanvasProps {
 export default function DrawingCanvas({ tool, color, clearTrigger, undoTrigger }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [lineWidth, setLineWidth] = useState([5]);
+  const [lineWidth] = useState([5]);
   const [history, setHistory] = useState<string[]>([]);
+  const [contextReady, setContextReady] = useState(false);
 
+  // تهيئة الحجم وحفظ الحالة الأولى
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = canvas.parentElement?.clientWidth || 800;
-    canvas.height = canvas.parentElement?.clientHeight || 500;
+    const parent = canvas.parentElement;
+    if (parent) {
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+    } else {
+      canvas.width = 800;
+      canvas.height = 500;
+    }
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-
+    ctx.globalCompositeOperation = "source-over";
+    setContextReady(true);
     setHistory([canvas.toDataURL()]);
   }, []);
 
+  // استجابة لأوامر المسح والتراجع
   useEffect(() => {
     if (clearTrigger > 0) {
       clearCanvas();
@@ -44,13 +52,37 @@ export default function DrawingCanvas({ tool, color, clearTrigger, undoTrigger }
     }
   }, [undoTrigger]);
 
+  const getCoordinates = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
+    canvas: HTMLCanvasElement
+  ) => {
+    if ("touches" in e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        offsetX: e.touches[0].clientX - rect.left,
+        offsetY: e.touches[0].clientY - rect.top,
+      };
+    } else {
+      return {
+        offsetX: e.nativeEvent.offsetX,
+        offsetY: e.nativeEvent.offsetY,
+      };
+    }
+  };
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.strokeStyle = tool === "eraser" ? "#FFFFFF" : color;
+    if (tool === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "#FFFFFF"; 
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = color;
+    }
     ctx.lineWidth = lineWidth[0];
 
     const { offsetX, offsetY } = getCoordinates(e, canvas);
@@ -77,6 +109,10 @@ export default function DrawingCanvas({ tool, color, clearTrigger, undoTrigger }
 
     const canvas = canvasRef.current;
     if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.globalCompositeOperation = "source-over";
+      }
       setHistory((prev) => [...prev, canvas.toDataURL()]);
     }
   };
@@ -91,11 +127,11 @@ export default function DrawingCanvas({ tool, color, clearTrigger, undoTrigger }
     const newHistory = history.slice(0, -1);
     setHistory(newHistory);
 
-    const previousStateImg = new Image();
-    previousStateImg.src = newHistory[newHistory.length - 1];
-    previousStateImg.onload = () => {
+    const img = new Image();
+    img.src = newHistory[newHistory.length - 1];
+    img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(previousStateImg, 0, 0);
+      ctx.drawImage(img, 0, 0);
     };
   };
 
@@ -108,40 +144,26 @@ export default function DrawingCanvas({ tool, color, clearTrigger, undoTrigger }
     setHistory([canvas.toDataURL()]);
   };
 
-  const getCoordinates = (
-    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
-    canvas: HTMLCanvasElement
-  ) => {
-    if ("touches" in e) {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        offsetX: e.touches[0].clientX - rect.left,
-        offsetY: e.touches[0].clientY - rect.top,
-      };
-    } else {
-      return {
-        offsetX: e.nativeEvent.offsetX,
-        offsetY: e.nativeEvent.offsetY,
-      };
-    }
-  };
-
   return (
-    <Card className="w-1/2 border-none bg-transparent shadow-none">
-      
-      <CardContent className="p-0 h-[550px] relative touch-none overflow-hidden rounded-b-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-        <canvas
-          ref={canvasRef}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-          className="w-full h-full cursor-crosshair"
-        />
-      </CardContent>
-    </Card>
+    <canvas
+      ref={canvasRef}
+      onMouseDown={startDrawing}
+      onMouseMove={draw}
+      onMouseUp={stopDrawing}
+      onMouseLeave={stopDrawing}
+      onTouchStart={startDrawing}
+      onTouchMove={draw}
+      onTouchEnd={stopDrawing}
+      className="w-full h-full block cursor-crosshair"
+      style={{
+        backgroundColor: "#0a0a0a",
+        backgroundImage: `
+          radial-gradient(circle at 25% 25%, #222222 0.5px, transparent 1px),
+          radial-gradient(circle at 75% 75%, #111111 0.5px, transparent 1px)
+        `,
+        backgroundSize: "10px 10px",
+        imageRendering: "pixelated",
+      }}
+    />
   );
 }
